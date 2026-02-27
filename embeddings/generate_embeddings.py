@@ -5,6 +5,7 @@ import time
 import requests
 from dotenv import load_dotenv
 from pymongo import MongoClient
+import json
 
 # Load environment variables from .env file
 load_dotenv()
@@ -23,6 +24,7 @@ logger = logging.getLogger(__name__)
 MONGODB_SOURCE_URI = os.getenv("MONGODB_SOURCE_URI", "mongodb://localhost:27017/")
 MONGODB_SOURCE_DATABASE = os.getenv("MONGODB_SOURCE_DATABASE", "embeddings_db")
 MONGODB_SOURCE_COLLECTION = os.getenv("MONGODB_SOURCE_COLLECTION", "document_embeddings")
+MONGODB_SOURCE_FILTER = {}
 
 # MongoDB Embeddings Configuration (for saving embeddings)
 MONGODB_EMBEDDINGS_URI = os.getenv("MONGODB_EMBEDDINGS_URI", "mongodb://localhost:27017/")
@@ -34,9 +36,11 @@ EMBEDDINGS_API_URL = os.getenv("EMBEDDINGS_API_URL", "http://localhost:11434/api
 EMBEDDINGS_MODEL = os.getenv("EMBEDDINGS_MODEL", "nomic-embed-text")
 EMBEDDINGS_VECTOR_SIZE = int(os.getenv("EMBEDDINGS_VECTOR_SIZE", "768"))
 
-# Text field to generate embeddings from
-TEXT_FIELD = os.getenv("TEXT_FIELD", "ti_pt")
+# Text fields to generate embeddings from (will be combined)
+TEXT_IN_FIELDS = ['ti', 'ti_pt', 'ti_es', 'ti_en']
 
+# Text field to store in the embeddings collection (for reference)
+TEXT_OUT_FIELD = 'ti'
 
 def generate_embedding(text):
     """
@@ -87,7 +91,8 @@ def main():
     logger.info(f"Embedding Model: {EMBEDDINGS_MODEL}")
     logger.info(f"Embedding API URL: {EMBEDDINGS_API_URL}")
     logger.info(f"Expected Vector Size: {EMBEDDINGS_VECTOR_SIZE}")
-    logger.info(f"Text Field: {TEXT_FIELD}")
+    logger.info(f"Text Fields: {TEXT_IN_FIELDS}")
+    logger.info(f"Output Field: {TEXT_OUT_FIELD}")
 
     # 2. Connect to MongoDB Source (for reading documents)
     logger.info(f"Connecting to MongoDB Source at {MONGODB_SOURCE_URI}...")
@@ -121,9 +126,9 @@ def main():
         return
 
     # 4. Query MongoDB Source for documents
-    logger.info("Querying MongoDB Source collection...")
+    logger.info(f"Querying MongoDB Source collection... Filter: {MONGODB_SOURCE_FILTER}")
     try:
-        documents = list(source_collection.find({}))
+        documents = list(source_collection.find(MONGODB_SOURCE_FILTER))
         logger.info(f"Found {len(documents)} documents to process")
     except Exception as e:
         logger.error(f"Error querying MongoDB Source: {e}")
@@ -143,16 +148,26 @@ def main():
     for idx, doc in enumerate(documents, 1):
         document_id = doc.get("_id")
         record_id = doc.get("id")
-        text_content = doc.get(TEXT_FIELD)
-        # Handle case where text_content might be a list
-        if isinstance(text_content, list):
-            text_content = " ".join(str(item) for item in text_content if item)
-        elif text_content:
-            text_content = str(text_content)
+
+        # Collect text from all specified fields
+        text_parts = []
+        for field in TEXT_IN_FIELDS:
+            field_content = doc.get(field)
+            if field_content:
+                # Handle case where field_content might be a list
+                if isinstance(field_content, list):
+                    field_text = " ".join(str(item) for item in field_content if item)
+                else:
+                    field_text = str(field_content)
+                if field_text:
+                    text_parts.append(field_text)
+
+        # Combine all text parts
+        text_content = " ".join(text_parts)
 
         if not text_content:
             logger.warning(
-                f"Document {record_id} has no '{TEXT_FIELD}' field, skipping"
+                f"Document {record_id} has no content in any of the fields {TEXT_IN_FIELDS}, skipping"
             )
             continue
 
@@ -178,8 +193,8 @@ def main():
             embedding_doc = {
                 "document_id": document_id,
                 "record_id": str(record_id),
-                "ti": text_content,
-                "vector_embedding": vector,
+                TEXT_OUT_FIELD: text_content,
+                "vector": vector,
                 "vector_size": len(vector),
                 "model": EMBEDDINGS_MODEL,
             }
