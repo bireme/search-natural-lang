@@ -19,3 +19,6 @@ dev_migrate:
 dev_generate_embeddings:
 	. ./set_env.sh && uv run python generate_embeddings.py
 
+dev_load_solr:
+	. ./set_env.sh && uv run python load_solr.py
+
