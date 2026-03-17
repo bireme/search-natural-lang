@@ -46,7 +46,7 @@ def send_to_solr(client, docs):
     Returns:
         The HTTP response status code
     """
-    url = f"{SOLR_EMBEDDINGS_URL}/solr/{SOLR_EMBEDDINGS_COLLECTION}/update/json/docs"
+    url = f"{SOLR_EMBEDDINGS_URL}/{SOLR_EMBEDDINGS_COLLECTION}/update/json/docs"
     response = client.post(
         url,
         json=docs,
@@ -122,7 +122,7 @@ def commit_solr(client):
     Args:
         client: An httpx.Client instance
     """
-    commit_url = f"{SOLR_EMBEDDINGS_URL}/solr/{SOLR_EMBEDDINGS_COLLECTION}/update"
+    commit_url = f"{SOLR_EMBEDDINGS_URL}/{SOLR_EMBEDDINGS_COLLECTION}/update"
     response = client.post(commit_url, json={"commit": {}})
     response.raise_for_status()
 
@@ -156,7 +156,7 @@ def main():
 
             logger.info("Testing Solr connectivity...")
             try:
-                ping_url = f"{SOLR_EMBEDDINGS_URL}/solr/{SOLR_EMBEDDINGS_COLLECTION}/admin/ping"
+                ping_url = f"{SOLR_EMBEDDINGS_URL}/{SOLR_EMBEDDINGS_COLLECTION}/admin/ping"
                 response = http_client.get(ping_url)
                 response.raise_for_status()
                 logger.info("Solr ping successful")
