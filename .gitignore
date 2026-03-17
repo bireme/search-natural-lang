@@ -1,2 +1,6 @@
 # Environment variables
 .env
+
+# Agents
+.claude
+CLAUDE.md

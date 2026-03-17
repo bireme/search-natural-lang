@@ -1,0 +1,11 @@
+services:
+  embeddings:
+    container_name: embeddings
+    build:
+      context: .
+      target: dev
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    network_mode: host
