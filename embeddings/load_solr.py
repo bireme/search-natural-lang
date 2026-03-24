@@ -33,6 +33,7 @@ SOLR_EMBEDDINGS_COLLECTION = os.getenv("SOLR_EMBEDDINGS_COLLECTION", "embeddings
 
 # Fields to copy from MongoDB documents to Solr documents
 SOLR_FIELDS = ['record_id', 'ti', 'vector', 'vector_size', 'model']
+SOLR_FIELD_ID = 'record_id'  # The field in MongoDB that will be used as the Solr document ID (if different from '_id')
 
 # Batch size for Solr indexing (configurable via env)
 BATCH_SIZE = int(os.getenv("SOLR_BATCH_SIZE", "100"))
@@ -122,7 +123,7 @@ def build_solr_document(doc):
     Returns:
         A Solr document dict
     """
-    solr_doc = {"id": str(doc["_id"])}
+    solr_doc = {"id": str(doc.get(SOLR_FIELD_ID, doc["_id"]))}
     for field in SOLR_FIELDS:
         if field in doc:
             solr_doc[field] = doc[field]

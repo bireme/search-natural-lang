@@ -1,23 +1,24 @@
 #!make
 
-# Docker DEV
-COMPOSE_FILE_DEV=docker-compose-dev.yml
+.PHONY: build build_no_cache generate_embeddings load_solr sh down
 
-dev_build:
-	@docker compose -f $(COMPOSE_FILE_DEV) build
+args ?=
 
-dev_build_no_cache:
-	@docker compose -f $(COMPOSE_FILE_DEV) build --no-cache
+build:
+	@docker compose build
 
-dev_generate_embeddings:
-	@docker compose -f $(COMPOSE_FILE_DEV) run --rm embeddings uv run python generate_embeddings.py
+build_no_cache:
+	@docker compose build --no-cache
 
-dev_load_solr:
-	@docker compose -f $(COMPOSE_FILE_DEV) run --rm embeddings uv run python load_solr.py
+generate_embeddings:
+	@docker compose run --rm embeddings uv run python generate_embeddings.py
 
-dev_sh:
-	@docker compose -f $(COMPOSE_FILE_DEV) run --rm embeddings sh
+load_solr:
+	@docker compose run --rm embeddings uv run python load_solr.py $(args)
 
-dev_down:
-	@docker compose -f $(COMPOSE_FILE_DEV) down
+sh:
+	@docker compose run --rm embeddings sh
+
+down:
+	@docker compose down
 
