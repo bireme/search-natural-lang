@@ -84,12 +84,15 @@ class SolrClient:
     async def _send_query(self, params: dict[str, str]) -> list[dict]:
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.get(self.select_url, params=params)
+                response = await client.post(self.select_url, data=params)
                 response.raise_for_status()
         except (httpx.TimeoutException, httpx.ConnectError, httpx.NetworkError) as exc:
             raise SolrUnavailableError("Solr is unavailable.") from exc
         except httpx.HTTPStatusError as exc:
-            raise SolrUnavailableError("Solr returned an error.") from exc
+            detail = exc.response.text[:500] if exc.response else "no response body"
+            raise SolrUnavailableError(
+                f"Solr returned HTTP {exc.response.status_code}: {detail}"
+            ) from exc
 
         try:
             data = response.json()
