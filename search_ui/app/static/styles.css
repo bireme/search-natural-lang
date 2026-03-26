@@ -1,0 +1,206 @@
+:root {
+  color-scheme: light;
+  --bg: #f4f1e8;
+  --panel: rgba(255, 252, 245, 0.88);
+  --line: #d6cbb8;
+  --text: #1d1b18;
+  --muted: #6b6355;
+  --accent: #0f766e;
+  --accent-strong: #115e59;
+  --error: #b42318;
+  --shadow: 0 24px 60px rgba(67, 52, 28, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at top, rgba(15, 118, 110, 0.12), transparent 32%),
+    linear-gradient(180deg, #faf7f0 0%, var(--bg) 100%);
+}
+
+.page {
+  width: min(960px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 3rem 0 4rem;
+}
+
+.hero {
+  margin-bottom: 1.5rem;
+}
+
+.eyebrow {
+  margin: 0 0 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.78rem;
+  color: var(--accent-strong);
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  line-height: 1.05;
+}
+
+h1 {
+  font-size: clamp(2.4rem, 5vw, 4.4rem);
+  margin-bottom: 0.75rem;
+}
+
+.lede {
+  margin: 0;
+  max-width: 42rem;
+  color: var(--muted);
+  font-size: 1.05rem;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid rgba(214, 203, 184, 0.8);
+  border-radius: 22px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(14px);
+  padding: 1.2rem;
+  margin-top: 1rem;
+}
+
+.search-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: end;
+}
+
+.field {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.field-query {
+  grid-column: 1 / -1;
+}
+
+.field span {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+input,
+select,
+button {
+  width: 100%;
+  min-height: 3rem;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  padding: 0.8rem 0.95rem;
+  font: inherit;
+  color: var(--text);
+  background: #fffdf8;
+}
+
+input:focus,
+select:focus,
+button:focus {
+  outline: 2px solid rgba(15, 118, 110, 0.22);
+  outline-offset: 1px;
+}
+
+.submit-button {
+  border: none;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.submit-button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.status {
+  min-height: 1.5rem;
+  margin-bottom: 1rem;
+  color: var(--muted);
+}
+
+.status.loading {
+  color: var(--accent-strong);
+}
+
+.status.error {
+  color: var(--error);
+}
+
+.status.success {
+  color: var(--accent-strong);
+}
+
+.results {
+  display: grid;
+  gap: 1rem;
+}
+
+.result-card {
+  border: 1px solid rgba(214, 203, 184, 0.9);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.86);
+  padding: 1rem;
+}
+
+.result-card h3 {
+  font-size: 1.25rem;
+  margin-bottom: 0.8rem;
+}
+
+.result-card dl,
+.debug-list {
+  margin: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.result-card dl div,
+.debug-list div {
+  display: grid;
+  grid-template-columns: 12rem minmax(0, 1fr);
+  gap: 1rem;
+}
+
+dt {
+  color: var(--muted);
+}
+
+dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+.debug-panel h2 {
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 720px) {
+  .page {
+    width: min(100% - 1rem, 960px);
+    padding-top: 1rem;
+  }
+
+  .field-row,
+  .result-card dl div,
+  .debug-list div {
+    grid-template-columns: 1fr;
+  }
+}

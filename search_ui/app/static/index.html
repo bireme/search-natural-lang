@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Solr Retrieval Test Bench</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="hero">
+        <p class="eyebrow">FastAPI + Solr</p>
+        <h1>Retrieval test bench</h1>
+        <p class="lede">Run vector and keyword searches against the configured Solr collection from one inspectable interface.</p>
+      </header>
+
+      <section class="panel">
+        <form id="search-form" class="search-form">
+          <label class="field field-query">
+            <span>Search query</span>
+            <input id="query" name="query" type="text" minlength="2" required placeholder="hypertension treatment in older adults" />
+          </label>
+
+          <div class="field-row">
+            <label class="field">
+              <span>Mode</span>
+              <select id="mode" name="mode"></select>
+            </label>
+
+            <label class="field">
+              <span>Top K</span>
+              <input id="top-k" name="top_k" type="number" min="1" step="1" />
+            </label>
+
+            <button id="submit-button" class="submit-button" type="submit">Search</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div id="status" class="status empty">Enter a query to start testing retrieval.</div>
+        <div id="results" class="results" aria-live="polite"></div>
+      </section>
+
+      <section class="panel debug-panel">
+        <h2>Debug</h2>
+        <dl id="debug" class="debug-list">
+          <div><dt>State</dt><dd>Waiting for first search</dd></div>
+        </dl>
+      </section>
+    </main>
+
+    <script src="/static/app.js" defer></script>
+  </body>
+  </html>

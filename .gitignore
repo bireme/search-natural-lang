@@ -4,3 +4,7 @@
 # Agents
 .claude
 CLAUDE.md
+
+# Cache files
+__pycache__/
+*.pyc
