@@ -1,71 +1,57 @@
 #!make
 
-COMPOSE_FILE_DEV=docker-compose-dev.yml
+.PHONY: dev_build dev_run dev_start dev_stop dev_down dev_logs dev_sh dev_run_local dev_test \
+        build start stop down logs sh
 
-.PHONY: build build_no_cache up down logs sh sync run test
-
+IMAGE_NAME := search-ui
+CONTAINER_NAME := search-ui
+DOCKER_FLAGS := -p 8000:8000 --env-file .env --add-host host.docker.internal:host-gateway
 args ?=
 
+# Development targets (volume-mounted code + hot-reload)
 dev_build:
-	@docker compose -f $(COMPOSE_FILE_DEV) build
-
-dev_build_no_cache:
-	@docker compose -f $(COMPOSE_FILE_DEV) build --no-cache
+	@docker build --target dev -t $(IMAGE_NAME):dev .
 
 dev_run:
-	@docker compose -f $(COMPOSE_FILE_DEV) up
+	@docker run --rm --name $(CONTAINER_NAME) $(DOCKER_FLAGS) -v $$(pwd):/app $(IMAGE_NAME):dev
 
 dev_start:
-	@docker compose -f $(COMPOSE_FILE_DEV) up -d
+	@docker run -d --name $(CONTAINER_NAME) $(DOCKER_FLAGS) -v $$(pwd):/app $(IMAGE_NAME):dev
+
+dev_stop:
+	@docker stop $(CONTAINER_NAME)
 
 dev_down:
-	@docker compose -f $(COMPOSE_FILE_DEV) down
+	@docker stop $(CONTAINER_NAME) && docker rm $(CONTAINER_NAME)
 
 dev_logs:
-	@docker compose -f $(COMPOSE_FILE_DEV) logs -f search-ui
+	@docker logs -f $(CONTAINER_NAME)
 
 dev_sh:
-	@docker compose -f $(COMPOSE_FILE_DEV) run --rm search-ui sh
+	@docker run --rm -it $(DOCKER_FLAGS) -v $$(pwd):/app $(IMAGE_NAME):dev sh
 
-dev_install_dev:
-	@uv sync --dev
-
-dev_install:
-	@uv sync
-
-run:
+dev_run_local:
 	@uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 dev_test:
-	@docker compose -f $(COMPOSE_FILE_DEV) run --rm search-ui sh -c "uv run pytest $(args)"
+	@docker run --rm $(DOCKER_FLAGS) -v $$(pwd):/app $(IMAGE_NAME):dev \
+		sh -c "uv run pytest $(args)"
 
-
+# Production targets (code baked into image)
 build:
-	@docker compose build
-
-build_no_cache:
-	@docker compose build --no-cache
+	@docker build --target production -t $(IMAGE_NAME):latest .
 
 start:
-	@docker compose up
+	@docker run -d --name $(CONTAINER_NAME) $(DOCKER_FLAGS) $(IMAGE_NAME):latest
+
+stop:
+	@docker stop $(CONTAINER_NAME)
 
 down:
-	@docker compose down
+	@docker stop $(CONTAINER_NAME) && docker rm $(CONTAINER_NAME)
 
 logs:
-	@docker compose logs -f search-ui
+	@docker logs -f $(CONTAINER_NAME)
 
 sh:
-	@docker compose run --rm search-ui sh
-
-sync_dev:
-	@uv sync --dev
-
-sync:
-	@uv sync
-
-run:
-	@uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-
-test:
-	@uv run pytest $(args)
+	@docker run --rm -it $(DOCKER_FLAGS) $(IMAGE_NAME):latest sh

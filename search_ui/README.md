@@ -1,11 +1,58 @@
 # Search UI
 
-This app provides a small FastAPI-based browser UI for testing document retrieval from a Solr collection using either vector search or keyword search.
+FastAPI web interface for Solr vector and keyword search, with Ollama-powered embeddings.
 
 ## External services
 
 - Solr with a collection that exposes fields compatible with this app
 - Ollama-compatible embeddings endpoint for vector mode
+
+## Setup
+
+1. Copy and configure the environment file:
+```bash
+cp .env.example .env
+```
+
+2. Build the Docker image:
+```bash
+make dev_build   # development (volume-mounted, hot-reload)
+make build       # production (code baked in)
+```
+
+## Development
+
+Run with Docker (hot-reload via volume mount):
+```bash
+make dev_run       # foreground
+make dev_start     # detached
+make dev_logs      # follow logs
+make dev_stop      # stop container
+make dev_down      # stop + remove container
+make dev_sh        # shell into container
+```
+
+Run locally without Docker:
+```bash
+uv sync --dev
+make dev_run_local
+```
+
+Run tests:
+```bash
+make dev_test
+make dev_test args="-v"
+```
+
+## Production
+
+```bash
+make build
+make start    # run detached
+make logs     # follow logs
+make stop     # stop container
+make down     # stop + remove container
+```
 
 ## Environment variables
 
@@ -37,27 +84,6 @@ Copy `.env.example` to `.env` and adjust values as needed.
 - `EMBEDDINGS_MODEL`
 - `EMBEDDINGS_VECTOR_SIZE`
 - `EMBEDDINGS_TIMEOUT_SECONDS`
-
-## Local run
-
-```bash
-cd search_ui
-cp .env.example .env
-uv sync --dev
-uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-Open `http://localhost:8000`.
-
-## Docker run
-
-```bash
-cd search_ui
-cp .env.example .env
-docker compose up --build
-```
-
-The container maps port `8000` and includes `host.docker.internal:host-gateway` for local host service access.
 
 ## Example curl requests
 
