@@ -1,24 +1,34 @@
 #!make
 
-.PHONY: build build_no_cache generate_embeddings load_solr sh down
+.PHONY: build build-prod generate_embeddings load_solr sh generate_embeddings-prod load_solr-prod
 
+IMAGE_NAME := embeddings
 args ?=
 
-build:
-	@docker compose build
+# Development build (default) -- expects volume mount
+dev_build:
+	@docker build --target dev -t $(IMAGE_NAME):dev .
 
-build_no_cache:
-	@docker compose build --no-cache
+# Development run helpers (volume-mounted code)
+dev_generate_embeddings:
+	@docker run --rm --network host --env-file .env -v $$(pwd):/app $(IMAGE_NAME):dev \
+		uv run python generate_embeddings.py $(args)
+
+dev_load_solr:
+	@docker run --rm --network host --env-file .env -v $$(pwd):/app $(IMAGE_NAME):dev \
+		uv run python load_solr.py $(args)
+
+dev_sh:
+	@docker run --rm -it --network host --env-file .env -v $$(pwd):/app $(IMAGE_NAME):dev sh
+
+# Production run helpers (no volume mount)
+build:
+	@docker build --target production -t $(IMAGE_NAME):latest .
 
 generate_embeddings:
-	@docker compose run --rm embeddings uv run python generate_embeddings.py
+	@docker run --rm --network host --env-file .env $(IMAGE_NAME):latest \
+		uv run python generate_embeddings.py $(args)
 
 load_solr:
-	@docker compose run --rm embeddings uv run python load_solr.py $(args)
-
-sh:
-	@docker compose run --rm embeddings sh
-
-down:
-	@docker compose down
-
+	@docker run --rm --network host --env-file .env $(IMAGE_NAME):latest \
+		uv run python load_solr.py $(args)
