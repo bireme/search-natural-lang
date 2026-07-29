@@ -9,9 +9,8 @@
   <body>
     <main class="page">
       <header class="hero">
-        <p class="eyebrow">FastAPI + Solr</p>
         <h1>Search Natural Language</h1>
-        <p class="lede">Run vector and keyword searches against the configured Solr collection from one inspectable interface.</p>
+        <p class="lede">Run vector and keyword searches against the configured Solr collections from one inspectable interface.</p>
       </header>
 
       <section class="panel">
@@ -22,6 +21,11 @@
           </label>
 
           <div class="field-row">
+            <label class="field">
+              <span>Collection</span>
+              <select id="collection" name="collection"></select>
+            </label>
+
             <label class="field">
               <span>Mode</span>
               <select id="mode" name="mode"></select>

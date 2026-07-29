@@ -41,9 +41,19 @@ class Settings(BaseSettings):
         return ["vector", "keyword"]
 
     @property
-    def solr_select_url(self) -> str:
+    def solr_collections(self) -> list[str]:
+        return [name.strip() for name in self.solr_collection.split(",") if name.strip()]
+
+    @property
+    def default_solr_collection(self) -> str:
+        collections = self.solr_collections
+        if not collections:
+            raise ValueError("SOLR_COLLECTION must contain at least one collection name.")
+        return collections[0]
+
+    def solr_select_url(self, collection: str) -> str:
         base_url = str(self.solr_base_url).rstrip("/")
-        return f"{base_url}/{self.solr_collection}/select"
+        return f"{base_url}/{collection}/select"
 
 
 @lru_cache

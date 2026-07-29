@@ -23,13 +23,15 @@ class SolrQueryResult:
     docs: list[dict]
     solr_query: str
     rows: int
+    collection: str = ""
 
 
 class SolrClient:
     def __init__(
         self,
         *,
-        select_url: str,
+        base_url: str,
+        default_collection: str,
         vector_field: str,
         title_field: str,
         id_field: str,
@@ -38,7 +40,8 @@ class SolrClient:
         keyword_qf: str,
         timeout_seconds: float,
     ) -> None:
-        self.select_url = select_url
+        self.base_url = base_url.rstrip("/")
+        self.default_collection = default_collection
         self.vector_field = vector_field
         self.title_field = title_field
         self.id_field = id_field
@@ -71,20 +74,29 @@ class SolrClient:
             ]
         )
 
-    async def search_vector(self, vector: list[float], top_k: int) -> SolrQueryResult:
+    def select_url(self, collection: str | None = None) -> str:
+        return f"{self.base_url}/{collection or self.default_collection}/select"
+
+    async def search_vector(
+        self, vector: list[float], top_k: int, collection: str | None = None
+    ) -> SolrQueryResult:
         params, query = self.build_vector_query(vector, top_k)
-        docs = await self._send_query(params)
-        return SolrQueryResult(docs=docs, solr_query=query, rows=top_k)
+        target = collection or self.default_collection
+        docs = await self._send_query(params, target)
+        return SolrQueryResult(docs=docs, solr_query=query, rows=top_k, collection=target)
 
-    async def search_keyword(self, query_text: str, top_k: int) -> SolrQueryResult:
+    async def search_keyword(
+        self, query_text: str, top_k: int, collection: str | None = None
+    ) -> SolrQueryResult:
         params, query = self.build_keyword_query(query_text, top_k)
-        docs = await self._send_query(params)
-        return SolrQueryResult(docs=docs, solr_query=query, rows=top_k)
+        target = collection or self.default_collection
+        docs = await self._send_query(params, target)
+        return SolrQueryResult(docs=docs, solr_query=query, rows=top_k, collection=target)
 
-    async def _send_query(self, params: dict[str, str]) -> list[dict]:
+    async def _send_query(self, params: dict[str, str], collection: str | None = None) -> list[dict]:
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.post(self.select_url, data=params)
+                response = await client.post(self.select_url(collection), data=params)
                 response.raise_for_status()
         except (httpx.TimeoutException, httpx.ConnectError, httpx.NetworkError) as exc:
             raise SolrUnavailableError("Solr is unavailable.") from exc

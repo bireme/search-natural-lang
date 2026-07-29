@@ -3,12 +3,15 @@ const state = {
     default_top_k: 10,
     max_top_k: 50,
     supported_modes: ["vector", "keyword"],
+    collections: [],
+    default_collection: "",
   },
 };
 
 const form = document.getElementById("search-form");
 const queryInput = document.getElementById("query");
 const modeSelect = document.getElementById("mode");
+const collectionSelect = document.getElementById("collection");
 const topKInput = document.getElementById("top-k");
 const submitButton = document.getElementById("submit-button");
 const statusEl = document.getElementById("status");
@@ -30,6 +33,15 @@ async function loadConfig() {
     modeSelect.appendChild(option);
   });
 
+  collectionSelect.innerHTML = "";
+  (state.config.collections || []).forEach((collection) => {
+    const option = document.createElement("option");
+    option.value = collection;
+    option.textContent = collection;
+    option.selected = collection === state.config.default_collection;
+    collectionSelect.appendChild(option);
+  });
+
   topKInput.value = state.config.default_top_k;
   topKInput.max = state.config.max_top_k;
 }
@@ -37,6 +49,7 @@ async function loadConfig() {
 function setSearching(isSearching) {
   queryInput.disabled = isSearching;
   modeSelect.disabled = isSearching;
+  collectionSelect.disabled = isSearching;
   topKInput.disabled = isSearching;
   submitButton.disabled = isSearching;
   submitButton.textContent = isSearching ? "Searching..." : "Search";
@@ -77,6 +90,7 @@ function renderResults(results) {
 
 function renderDebug(response) {
   const items = [
+    ["collection", response.collection],
     ["request mode", response.mode],
     ["top_k", String(response.top_k)],
     ["response time in ms", String(response.took_ms)],
@@ -113,6 +127,7 @@ async function handleSearch(event) {
       query: queryInput.value.trim(),
       mode: modeSelect.value,
       top_k: Number(topKInput.value),
+      collection: collectionSelect.value || null,
     };
 
     const response = await fetch("/search", {
