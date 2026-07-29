@@ -14,12 +14,15 @@ class ConfigResponse(BaseModel):
     default_top_k: int
     max_top_k: int
     supported_modes: list[SearchMode]
+    collections: list[str]
+    default_collection: str
 
 
 class SearchRequest(BaseModel):
     query: str
     mode: SearchMode
     top_k: int = Field(default=10)
+    collection: str | None = Field(default=None)
 
     @field_validator("query")
     @classmethod
@@ -56,6 +59,7 @@ class SearchResponse(BaseModel):
     query: str
     mode: SearchMode
     top_k: int
+    collection: str
     took_ms: int
     results: list[SearchResult]
     debug: SearchDebug

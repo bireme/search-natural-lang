@@ -37,7 +37,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             timeout_seconds=config.embeddings_timeout_seconds,
         )
         app.state.solr_client = SolrClient(
-            select_url=config.solr_select_url,
+            base_url=str(config.solr_base_url),
+            default_collection=config.default_solr_collection,
             vector_field=config.solr_vector_field,
             title_field=config.solr_title_field,
             id_field=config.solr_id_field,
@@ -74,6 +75,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             default_top_k=active_settings.app_default_top_k,
             max_top_k=active_settings.app_max_top_k,
             supported_modes=active_settings.supported_modes,
+            collections=active_settings.solr_collections,
+            default_collection=active_settings.default_solr_collection,
         )
 
     @app.post("/search", response_model=SearchResponse)
@@ -83,6 +86,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(
                 status_code=422,
                 detail=f"top_k must be between 1 and {active_settings.app_max_top_k}.",
+            )
+
+        available_collections = active_settings.solr_collections
+        collection = payload.collection or active_settings.default_solr_collection
+        if collection not in available_collections:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Unknown collection '{collection}'. Available: {', '.join(available_collections)}.",
             )
 
         solr_client: SolrClient = request.app.state.solr_client
@@ -95,11 +106,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
             if payload.mode == "vector":
                 vector = await ollama_client.embed(payload.query)
-                solr_result = await solr_client.search_vector(vector, payload.top_k)
+                solr_result = await solr_client.search_vector(vector, payload.top_k, collection)
                 embedding_model = active_settings.embeddings_model
                 embedding_size = len(vector)
             else:
-                solr_result = await solr_client.search_keyword(payload.query, payload.top_k)
+                solr_result = await solr_client.search_keyword(payload.query, payload.top_k, collection)
 
             results = [
                 SearchResult.model_validate(solr_client.normalize_doc(doc))
@@ -119,6 +130,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             query=payload.query,
             mode=payload.mode,
             top_k=payload.top_k,
+            collection=collection,
             took_ms=took_ms,
             results=results,
             debug=SearchDebug(

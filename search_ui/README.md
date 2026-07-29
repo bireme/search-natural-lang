@@ -69,7 +69,7 @@ Copy `.env.example` to `.env` and adjust values as needed.
 ### Solr
 
 - `SOLR_BASE_URL`
-- `SOLR_COLLECTION`
+- `SOLR_COLLECTION` — one or more collection names separated by commas (e.g. `embeddings,embeddings_v2`). The UI shows a collection selector with these options and the first entry is the default.
 - `SOLR_VECTOR_FIELD`
 - `SOLR_TITLE_FIELD`
 - `SOLR_ID_FIELD`
