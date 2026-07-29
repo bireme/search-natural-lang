@@ -22,6 +22,7 @@ Generate embeddings from source documents:
 ```bash
 make generate_embeddings
 make generate_embeddings args="--limit 100 --dry-run"
+make generate_embeddings args="--embedding-fields 'ti,ti_pt,ab'"
 ```
 
 Load embeddings into Solr:
@@ -43,6 +44,11 @@ Both scripts support:
 - `--filter '{"key": "value"}'` — MongoDB query filter
 - `--since <ObjectId>` — resume from a specific document
 - `-v` — verbose (DEBUG) logging
+
+`generate_embeddings.py` also supports:
+- `--embedding-fields 'ti,ab'` — comma-separated document fields concatenated to build the embedding text (overrides the `EMBEDDING_FIELDS` env var; default: `ti,ti_pt,ti_es,ti_en`)
+- `--max-retries N` — cursor re-creation attempts on CursorNotFound (default: 10)
+- `--save-progress` / `--resume` — persist and resume from `.embeddings_progress.json`
 
 `load_solr.py` also supports:
 - `--batch-size N` — documents per Solr batch (default: 100)

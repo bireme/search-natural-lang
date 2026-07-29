@@ -38,8 +38,9 @@ EMBEDDINGS_API_URL = os.getenv("EMBEDDINGS_API_URL", "http://localhost:11434/api
 EMBEDDINGS_MODEL = os.getenv("EMBEDDINGS_MODEL", "nomic-embed-text")
 EMBEDDINGS_VECTOR_SIZE = int(os.getenv("EMBEDDINGS_VECTOR_SIZE", "768"))
 
-# Text fields to generate embeddings from (will be combined)
-TEXT_IN_FIELDS = ['ti', 'ti_pt', 'ti_es', 'ti_en']
+# Comma-separated document fields to generate embeddings from (will be combined),
+# overridable with --embedding-fields
+EMBEDDING_FIELDS = os.getenv("EMBEDDING_FIELDS", "ti,ti_pt,ti_es,ti_en")
 
 # Text field to store in the embeddings collection (for reference)
 TEXT_OUT_FIELD = 'ti'
@@ -96,11 +97,45 @@ def parse_args():
         help="Resume from saved progress file (overrides --since)",
     )
     parser.add_argument(
+        "--embedding-fields",
+        type=str,
+        default=None,
+        help=(
+            "Comma-separated list of document fields concatenated to build the embedding text, "
+            f"e.g. 'ti,ab' (default: {EMBEDDING_FIELDS})"
+        ),
+    )
+    parser.add_argument(
         "-v", "--verbose",
         action="store_true",
         help="Enable DEBUG-level logging",
     )
     return parser.parse_args()
+
+
+def parse_embedding_fields(value):
+    """
+    Parse the --embedding-fields argument into a list of field names.
+
+    Args:
+        value: Comma-separated field names, or None to use EMBEDDING_FIELDS
+
+    Returns:
+        List of field names
+
+    Raises:
+        ValueError: If the value contains no usable field name
+    """
+    raw = EMBEDDING_FIELDS if value is None else value
+    fields = [field.strip() for field in raw.split(",")]
+    fields = [field for field in fields if field]
+
+    if not fields:
+        raise ValueError(
+            "--embedding-fields must contain at least one field name, e.g. --embedding-fields 'ti,ab'"
+        )
+
+    return fields
 
 
 def generate_embedding(text):
@@ -165,6 +200,13 @@ def main():
         logging.getLogger().setLevel(logging.DEBUG)
         logger.debug("Verbose logging enabled")
 
+    # Resolve the text fields used to build the embedding input
+    try:
+        embedding_fields = parse_embedding_fields(args.embedding_fields)
+    except ValueError as exc:
+        logger.error("%s", exc)
+        return
+
     # Build MongoDB query filter
     mongo_filter = {}
     if args.filter:
@@ -202,7 +244,7 @@ def main():
     logger.info(f"Embedding Model: {EMBEDDINGS_MODEL}")
     logger.info(f"Embedding API URL: {EMBEDDINGS_API_URL}")
     logger.info(f"Expected Vector Size: {EMBEDDINGS_VECTOR_SIZE}")
-    logger.info(f"Text Fields: {TEXT_IN_FIELDS}")
+    logger.info(f"Embedding Fields: {embedding_fields}")
     logger.info(f"Output Field: {TEXT_OUT_FIELD}")
     if args.dry_run:
         logger.info("*** DRY RUN MODE — embeddings will not be saved ***")
@@ -284,7 +326,7 @@ def main():
 
                         # Collect text from all specified fields
                         text_parts = []
-                        for field in TEXT_IN_FIELDS:
+                        for field in embedding_fields:
                             field_content = doc.get(field)
                             if field_content:
                                 # Handle case where field_content might be a list
@@ -300,7 +342,7 @@ def main():
 
                         if not text_content:
                             logger.warning(
-                                f"Document {record_id} has no content in any of the fields {TEXT_IN_FIELDS}, skipping"
+                                f"Document {record_id} has no content in any of the fields {embedding_fields}, skipping"
                             )
                             continue
 
