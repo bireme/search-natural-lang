@@ -56,6 +56,21 @@ def parse_args():
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
         description="Generate embeddings from MongoDB documents and store them.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "examples:\n"
+            "  # use the fields from the EMBEDDING_FIELDS env var\n"
+            "  python generate_embeddings.py\n"
+            "\n"
+            "  # embed title + abstract in every language\n"
+            "  python generate_embeddings.py --embedding-fields 'ti,ti_pt,ti_es,ti_en,ab,ab_pt,ab_es,ab_en'\n"
+            "\n"
+            "  # same, through the Makefile (quote the whole args value)\n"
+            "  make dev_generate_embeddings args=\"--embedding-fields 'ti,ab' --limit 100 --dry-run\"\n"
+            "\n"
+            "note: --embedding-fields overrides the EMBEDDING_FIELDS env var. Fields are looked up on\n"
+            "each source document, skipped when empty, and the remaining values are joined with a space.\n"
+        ),
     )
     parser.add_argument(
         "--dry-run",
@@ -100,9 +115,11 @@ def parse_args():
         "--embedding-fields",
         type=str,
         default=None,
+        metavar="FIELDS",
         help=(
             "Comma-separated list of document fields concatenated to build the embedding text, "
-            f"e.g. 'ti,ab' (default: {EMBEDDING_FIELDS})"
+            f"e.g. --embedding-fields 'ti,ti_pt,ab'. Overrides the EMBEDDING_FIELDS env var. "
+            f"(default: {EMBEDDING_FIELDS})"
         ),
     )
     parser.add_argument(

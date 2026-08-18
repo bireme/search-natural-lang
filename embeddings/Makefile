@@ -1,6 +1,6 @@
 #!make
 
-.PHONY: build build-prod generate_embeddings load_solr sh generate_embeddings-prod load_solr-prod
+.PHONY: dev_build dev_generate_embeddings dev_load_solr dev_sh build generate_embeddings load_solr
 
 IMAGE_NAME := embeddings
 args ?=
