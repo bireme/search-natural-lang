@@ -8,7 +8,7 @@ import requests
 from bson import ObjectId
 from dotenv import load_dotenv
 from pymongo import MongoClient
-from pymongo.errors import CursorNotFound
+from pymongo.errors import AutoReconnect, CursorNotFound, OperationFailure
 
 # Load environment variables from .env file
 load_dotenv()
@@ -99,7 +99,19 @@ def parse_args():
         "--max-retries",
         type=int,
         default=10,
-        help="Max cursor re-creation attempts on CursorNotFound errors (default: 10)",
+        help=(
+            "Max *consecutive* page-fetch retries on MongoDB errors; the counter resets "
+            "whenever a page is processed successfully (default: 10)"
+        ),
+    )
+    parser.add_argument(
+        "--page-size",
+        type=int,
+        default=200,
+        help=(
+            "Documents fetched per query. Each page is read fully before any embedding call, "
+            "so the MongoDB cursor never idles during the API round-trips (default: 200)"
+        ),
     )
     parser.add_argument(
         "--save-progress",
@@ -224,6 +236,10 @@ def main():
         logger.error("%s", exc)
         return
 
+    if args.page_size < 1:
+        logger.error("--page-size must be at least 1")
+        return
+
     # Build MongoDB query filter
     mongo_filter = {}
     if args.filter:
@@ -267,6 +283,7 @@ def main():
         logger.info("*** DRY RUN MODE — embeddings will not be saved ***")
     if args.limit:
         logger.info(f"Limit: {args.limit} documents")
+    logger.info(f"Page Size: {args.page_size} documents per query")
     if mongo_filter:
         logger.info(f"MongoDB Filter: {mongo_filter}")
 
@@ -323,129 +340,145 @@ def main():
             process_start_time = time.time()
             last_progress_time = process_start_time
 
-            while retry_count <= args.max_retries:
-                # Build query — resume from last_doc_id if retrying after CursorNotFound
+            while True:
+                # Keyset pagination: every page is a fresh, short-lived query starting
+                # after the last processed _id.
                 query = dict(mongo_filter)
                 if last_doc_id is not None:
                     query["_id"] = {"$gt": last_doc_id}
 
-                remaining = (args.limit - idx) if args.limit else 0
-                cursor = source_collection.find(query).sort("_id", 1).batch_size(500)
+                page_size = args.page_size
                 if args.limit:
-                    cursor = cursor.limit(remaining)
+                    remaining = args.limit - idx
+                    if remaining <= 0:
+                        break
+                    page_size = min(page_size, remaining)
 
+                # Drain the page up-front so the server-side cursor is closed before any
+                # embedding call — a slow API can no longer let it idle past the server's
+                # cursor timeout (the cause of the CursorNotFound loop this replaces).
                 try:
-                    for doc in cursor:
-                        idx += 1
-                        document_id = doc.get("_id")
-                        record_id = doc.get("id")
-                        last_doc_id = document_id
-
-                        # Collect text from all specified fields
-                        text_parts = []
-                        for field in embedding_fields:
-                            field_content = doc.get(field)
-                            if field_content:
-                                # Handle case where field_content might be a list
-                                if isinstance(field_content, list):
-                                    field_text = " ".join(str(item) for item in field_content if item)
-                                else:
-                                    field_text = str(field_content)
-                                if field_text:
-                                    text_parts.append(field_text)
-
-                        # Combine all text parts
-                        text_content = " ".join(text_parts)
-
-                        if not text_content:
-                            logger.warning(
-                                f"Document {record_id} has no content in any of the fields {embedding_fields}, skipping"
-                            )
-                            continue
-
-                        try:
-                            # Generate embedding for this document
-                            logger.debug(f"[{idx}/{total_documents}] Processing document {record_id}...")
-                            text_length = len(text_content)
-                            vector, embedding_time = generate_embedding(text_content)
-                            total_embedding_time += embedding_time
-
-                            logger.debug(
-                                f"  Generated embedding in {embedding_time:.3f}s "
-                                f"(text length: {text_length} chars, vector size: {len(vector)})"
-                            )
-
-                            # Validate vector size
-                            if len(vector) != EMBEDDINGS_VECTOR_SIZE:
-                                logger.warning(
-                                    f"  Vector size {len(vector)} differs from expected {EMBEDDINGS_VECTOR_SIZE}"
-                                )
-
-                            # 6. Save the embedding to MongoDB Embeddings
-                            if args.dry_run:
-                                logger.debug(f"[DRY RUN] Would save embedding for document {record_id} (skipped)")
-                            else:
-                                embedding_doc = {
-                                    "document_id": document_id,
-                                    "record_id": str(record_id),
-                                    TEXT_OUT_FIELD: text_content,
-                                    "vector": vector,
-                                    "vector_size": len(vector),
-                                    "model": EMBEDDINGS_MODEL,
-                                }
-
-                                # Use upsert to update if exists or insert if new
-                                embeddings_collection.update_one(
-                                    {"document_id": document_id}, {"$set": embedding_doc}, upsert=True
-                                )
-                                logger.debug(f"  Saved embedding for document {record_id}")
-
-                            processed_count += 1
-
-                        except Exception as e:
-                            error_count += 1
-                            logger.error(f"Error processing document {record_id}: {e}")
-
-                        # Periodic progress reporting and save progress
-                        now = time.time()
-                        if now - last_progress_time >= PROGRESS_INTERVAL:
-                            elapsed = now - process_start_time
-                            pct = (idx / total_documents) * 100 if total_documents > 0 else 0
-                            rate = processed_count / elapsed if elapsed > 0 else 0
-                            eta = (total_documents - idx) / rate if rate > 0 else 0
-                            logger.info(
-                                "Progress: %.1f%% (%s/%s) | %.1f docs/sec | ETA: %.0fs",
-                                pct, idx, total_documents, rate, eta,
-                            )
-                            last_progress_time = now
-
-                            # Save progress to file
-                            if args.save_progress and last_doc_id is not None:
-                                _save_progress(last_doc_id, processed_count, idx, total_documents)
-
-                    # Completed successfully — exit retry loop
-                    break
-
-                except CursorNotFound:
+                    page = list(source_collection.find(query).sort("_id", 1).limit(page_size))
+                except (CursorNotFound, AutoReconnect, OperationFailure) as exc:
                     retry_count += 1
                     if retry_count > args.max_retries:
                         logger.error(
-                            "Max retries (%d) exceeded after CursorNotFound. "
+                            "Max consecutive retries (%d) exceeded fetching a page: %s. "
                             "Last processed document ID: %s. "
                             "Use --since %s to resume manually.",
-                            args.max_retries, last_doc_id, last_doc_id,
+                            args.max_retries, exc, last_doc_id, last_doc_id,
                         )
                         break
+                    backoff = min(2 ** retry_count, 30)
                     logger.warning(
-                        "CursorNotFound — re-creating cursor from document %s (retry %d/%d)",
-                        last_doc_id, retry_count, args.max_retries,
+                        "Error fetching page after document %s (%s) — retrying in %ds (%d/%d)",
+                        last_doc_id, exc, backoff, retry_count, args.max_retries,
                     )
-                    # Save progress before retrying
                     if args.save_progress and last_doc_id is not None:
                         _save_progress(last_doc_id, processed_count, idx, total_documents)
+                    time.sleep(backoff)
+                    continue
 
-                finally:
-                    cursor.close()
+                if not page:
+                    break
+
+                logger.debug("Fetched page of %d documents after _id %s", len(page), last_doc_id)
+
+                for doc in page:
+                    idx += 1
+                    document_id = doc.get("_id")
+                    record_id = doc.get("id")
+                    last_doc_id = document_id
+
+                    # Collect text from all specified fields
+                    text_parts = []
+                    for field in embedding_fields:
+                        field_content = doc.get(field)
+                        if field_content:
+                            # Handle case where field_content might be a list
+                            if isinstance(field_content, list):
+                                field_text = " ".join(str(item) for item in field_content if item)
+                            else:
+                                field_text = str(field_content)
+                            if field_text:
+                                text_parts.append(field_text)
+
+                    # Combine all text parts
+                    text_content = " ".join(text_parts)
+
+                    if not text_content:
+                        logger.warning(
+                            f"Document {record_id} has no content in any of the fields {embedding_fields}, skipping"
+                        )
+                        continue
+
+                    try:
+                        # Generate embedding for this document
+                        logger.debug(f"[{idx}/{total_documents}] Processing document {record_id}...")
+                        text_length = len(text_content)
+                        vector, embedding_time = generate_embedding(text_content)
+                        total_embedding_time += embedding_time
+
+                        logger.debug(
+                            f"  Generated embedding in {embedding_time:.3f}s "
+                            f"(text length: {text_length} chars, vector size: {len(vector)})"
+                        )
+
+                        # Validate vector size
+                        if len(vector) != EMBEDDINGS_VECTOR_SIZE:
+                            logger.warning(
+                                f"  Vector size {len(vector)} differs from expected {EMBEDDINGS_VECTOR_SIZE}"
+                            )
+
+                        # 6. Save the embedding to MongoDB Embeddings
+                        if args.dry_run:
+                            logger.debug(f"[DRY RUN] Would save embedding for document {record_id} (skipped)")
+                        else:
+                            embedding_doc = {
+                                "document_id": document_id,
+                                "record_id": str(record_id),
+                                TEXT_OUT_FIELD: text_content,
+                                "vector": vector,
+                                "vector_size": len(vector),
+                                "model": EMBEDDINGS_MODEL,
+                            }
+
+                            # Use upsert to update if exists or insert if new
+                            embeddings_collection.update_one(
+                                {"document_id": document_id}, {"$set": embedding_doc}, upsert=True
+                            )
+                            logger.debug(f"  Saved embedding for document {record_id}")
+
+                        processed_count += 1
+
+                    except Exception as e:
+                        error_count += 1
+                        logger.error(f"Error processing document {record_id}: {e}")
+
+                    # Periodic progress reporting and save progress
+                    now = time.time()
+                    if now - last_progress_time >= PROGRESS_INTERVAL:
+                        elapsed = now - process_start_time
+                        pct = (idx / total_documents) * 100 if total_documents > 0 else 0
+                        rate = processed_count / elapsed if elapsed > 0 else 0
+                        eta = (total_documents - idx) / rate if rate > 0 else 0
+                        logger.info(
+                            "Progress: %.1f%% (%s/%s) | %.1f docs/sec | ETA: %.0fs",
+                            pct, idx, total_documents, rate, eta,
+                        )
+                        last_progress_time = now
+
+                        # Save progress to file
+                        if args.save_progress and last_doc_id is not None:
+                            _save_progress(last_doc_id, processed_count, idx, total_documents)
+
+                # The page was processed, so the run is making progress: the retry budget
+                # counts *consecutive* failures, not failures over the lifetime of the run.
+                retry_count = 0
+
+                # A short page means the collection is exhausted
+                if len(page) < page_size:
+                    break
 
             # Final progress save
             if args.save_progress and last_doc_id is not None:
