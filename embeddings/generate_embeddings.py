@@ -66,7 +66,7 @@ def parse_args():
             "  python generate_embeddings.py --embedding-fields 'ti,ti_pt,ti_es,ti_en,ab,ab_pt,ab_es,ab_en'\n"
             "\n"
             "  # same, through the Makefile (quote the whole args value)\n"
-            "  make dev_generate_embeddings args=\"--embedding-fields 'ti,ab' --limit 100 --dry-run\"\n"
+            "  make generate_embeddings args=\"--embedding-fields 'ti,ab' --limit 100 --dry-run\"\n"
             "\n"
             "note: --embedding-fields overrides the EMBEDDING_FIELDS env var. Fields are looked up on\n"
             "each source document, skipped when empty, and the remaining values are joined with a space.\n"
