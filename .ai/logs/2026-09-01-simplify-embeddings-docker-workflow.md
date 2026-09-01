@@ -42,7 +42,9 @@ checkout.
 
 - **`embeddings/README.md`** — dropped the build step from Setup, rewrote usage without the
   `dev_` prefix, and removed both the dev/prod explanation and the "Production" section
-  along with the stale-image warning.
+  along with the stale-image warning. Also corrected the `--max-retries` description (stale
+  since the keyset-pagination change: it is consecutive page-fetch retries, not cursor
+  re-creation on CursorNotFound) and documented the previously missing `--page-size`.
 
 ## Net effect
 

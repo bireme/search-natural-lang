@@ -50,7 +50,8 @@ Both scripts support:
 
 `generate_embeddings.py` also supports:
 - `--embedding-fields 'ti,ab'` — comma-separated document fields concatenated to build the embedding text (overrides the `EMBEDDING_FIELDS` env var; default: `ti,ti_pt,ti_es,ti_en`)
-- `--max-retries N` — cursor re-creation attempts on CursorNotFound (default: 10)
+- `--max-retries N` — max *consecutive* page-fetch retries on MongoDB errors; the counter resets whenever a page is processed successfully (default: 10)
+- `--page-size N` — documents fetched per query; each page is read fully before any embedding call, so the MongoDB cursor never idles during the API round-trips (default: 200)
 - `--save-progress` / `--resume` — persist and resume from `.embeddings_progress.json`
 
 `load_solr.py` also supports:
