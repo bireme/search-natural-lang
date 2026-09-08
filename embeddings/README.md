@@ -6,41 +6,38 @@ Two-stage pipeline that generates vector embeddings from MongoDB documents and i
 
 ## Setup
 
-1. Copy and configure the environment file:
+Copy and configure the environment file:
 ```bash
 cp .env.example .env
 ```
 
-2. Build the Docker image:
-```bash
-make dev_build
-```
+That is all — the Docker image is built automatically the first time you run a target.
 
 ## Usage
 
 Generate embeddings from source documents:
 ```bash
-make dev_generate_embeddings
-make dev_generate_embeddings args="--limit 100 --dry-run"
-make dev_generate_embeddings args="--embedding-fields 'ti,ti_pt,ab'"
+make generate_embeddings
+make generate_embeddings args="--limit 100 --dry-run"
+make generate_embeddings args="--embedding-fields 'ti,ti_pt,ab'"
 ```
 
 Load embeddings into Solr:
 ```bash
-make dev_load_solr
-make dev_load_solr args="--clear --batch-size 200"
+make load_solr
+make load_solr args="--clear --batch-size 200"
 ```
 
 Open a shell in the container:
 ```bash
-make dev_sh
+make sh
 ```
 
-The `dev_*` targets mount the working directory into the container, so they always run
-the current code. The targets without the prefix use the production image, which has the
-scripts **baked in at build time** — rebuild it with `make build` after changing a script,
-otherwise the container keeps running the version from when the image was built (this is
-what causes `error: unrecognized arguments: --embedding-fields`).
+The image contains only the Python runtime and the project dependencies; the working
+directory is mounted into the container at run time, so every target always runs the
+current code — no rebuild after editing a script. `make` rebuilds the image on its own
+whenever `Dockerfile`, `pyproject.toml` or `uv.lock` changes (or the image is missing);
+`make build` forces a rebuild.
 
 ### CLI Options
 
@@ -53,23 +50,13 @@ Both scripts support:
 
 `generate_embeddings.py` also supports:
 - `--embedding-fields 'ti,ab'` — comma-separated document fields concatenated to build the embedding text (overrides the `EMBEDDING_FIELDS` env var; default: `ti,ti_pt,ti_es,ti_en`)
-- `--max-retries N` — cursor re-creation attempts on CursorNotFound (default: 10)
+- `--max-retries N` — max *consecutive* page-fetch retries on MongoDB errors; the counter resets whenever a page is processed successfully (default: 10)
+- `--page-size N` — documents fetched per query; each page is read fully before any embedding call, so the MongoDB cursor never idles during the API round-trips (default: 200)
 - `--save-progress` / `--resume` — persist and resume from `.embeddings_progress.json`
 
 `load_solr.py` also supports:
 - `--batch-size N` — documents per Solr batch (default: 100)
 - `--clear` — delete all Solr documents before loading
-
-## Production
-
-Build a standalone image with scripts baked in (no volume mount needed):
-```bash
-make build
-make generate_embeddings args="--limit 100"
-make load_solr args="--clear"
-```
-
-Re-run `make build` after every change to `generate_embeddings.py` or `load_solr.py`.
 
 ## Requirements
 
